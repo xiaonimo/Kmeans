@@ -1,11 +1,13 @@
-#ifndef KDTREE_H
-#define KDTREE_H
+#ifndef KDTREE_HPP
+#define KDTREE_HPP
 #include <cstdlib>
 #include <vector>
 #include <limits>
 #include <stdexcept>
 #include <algorithm>
 #include <iostream>
+
+namespace wzt {
 
 typedef std::size_t index_t;
 typedef std::vector<index_t> indexes_t;
@@ -225,7 +227,7 @@ void KDTree<data_t>::_search(const point_t &p, const unsigned int topk, TreeNode
     return;
 }
 
+}
 
 
-
-#endif // KDTREE_H
+#endif // KDTREE_HPP
