@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <limits>
 #include <iostream>
+#include <unordered_map>
 
 namespace wzt {
 
@@ -23,7 +24,7 @@ public:
     //inline Kmeans(){}
     inline Kmeans(const points_t _dataset):data_set(_dataset), data_dim(data_set[0].size()), data_cnt(data_set.size()){}
     //用户可以传入自定义的聚类中心
-    void cluster(unsigned int, points_t _centers=points_t(), std::string _Metric="L2", bool _verbose=false);
+    void cluster(unsigned int, points_t _centers=points_t(), std::string _Metric="L2", bool _verbose=true);
 
 public:
     points_t data_set;
@@ -31,7 +32,7 @@ public:
     unsigned int data_cnt;
 
     unsigned int n_clusters;
-    std::vector<point_t> centers;
+    std::vector<std::vector<double>> centers;
     bool verbose;
     std::string Metric;
 
@@ -45,6 +46,8 @@ private:
 
 public:
     std::vector<std::vector<std::size_t>> cluster_res;
+    double _sum_dist_cur=0.;
+    double _sum_dist_last=0.;
 };
 
 template<typename data_t>
@@ -52,11 +55,16 @@ void Kmeans<data_t>::cluster(unsigned int _n_clusters, Kmeans<data_t>::points_t 
     _init_params(_n_clusters, _Metric, _verbose);
     _init_centers(_centers);
 
-    index_t _itr = 1000;
+    index_t _itr = 20;
     while (_itr-->0) {
-        std::cout << _itr << std::endl;
         _cluster();
         _update_centers();
+
+        if (verbose) {
+            std::cout << _itr << "\t" << _sum_dist_cur-_sum_dist_last<< std::endl;
+            for (auto v:cluster_res) std::cout << v.size() <<"\t";
+            std::cout << std::endl;
+        }
     }
 }
 
@@ -73,10 +81,15 @@ void Kmeans<data_t>::_init_centers(typename Kmeans<data_t>::points_t _centers) {
     if (_centers.empty()) {
         std::mt19937 _gen;
         std::uniform_int_distribution<int> _random_index(0, data_cnt-1);
-        centers = std::vector<point_t>(n_clusters);
-        for (index_t i=0; i<n_clusters; ++i) {
+        centers = std::vector<std::vector<double>>(n_clusters);
+
+        std::unordered_map<int, bool> hmap;
+        for (index_t i=0; i<n_clusters;) {
             index_t __index = _random_index(_gen);
+            if (hmap[__index]) continue;
+            hmap[__index] = true;
             centers[i] = data_set[__index];
+            ++i;
         }
     } else {
         if (n_clusters != _centers.size())
@@ -86,11 +99,13 @@ void Kmeans<data_t>::_init_centers(typename Kmeans<data_t>::points_t _centers) {
 }
 
 template<typename data_t>
-void Kmeans<data_t>::_cluster() {
-    cluster_res = std::vector<std::vector<std::size_t>>(n_clusters, std::vector<std::size_t>());
+void Kmeans<data_t>:: _cluster() {
+    _sum_dist_last = _sum_dist_cur;
+    cluster_res = std::vector<std::vector<index_t>>(n_clusters, std::vector<index_t>());
     for (index_t _index=0; _index<data_cnt; ++_index) {
         index_t _center_index = _get_nearest_center(data_set[_index]);
         cluster_res[_center_index].push_back(_index);
+        _sum_dist_cur += _metric(centers[_center_index], data_set[_index]);
     }
 }
 
@@ -100,7 +115,7 @@ index_t Kmeans<data_t>::_get_nearest_center(const point_t &p) {
     double _dist = std::numeric_limits<double>::max();
     for (index_t _index=0; _index<n_clusters; ++_index) {
         double __dist = _metric(p, centers[_index]);
-        if (__dist > _dist) continue;
+        if (__dist >= _dist) continue;
         _dist = __dist;
         _res = _index;
     }
@@ -133,16 +148,16 @@ double Kmeans<data_t>::_metric(typename Kmeans<data_t>::point_t const &p1, typen
 }
 
 
-
-void read_train_mnist(std::vector<std::vector<int>>& X, std::vector<std::vector<int>>& Y, std::string filename) {
+template<typename data_t>
+void read_train_mnist(std::vector<std::vector<data_t>>& X, std::vector<std::vector<data_t>>& Y, std::string filename) {
     if (X.size() != Y.size()) throw std::invalid_argument(" X and Y'size shoule be same!");
     int num = X.size();
 
     std::freopen(filename.c_str(), "r", stdin);
-    double val = 0.;
+    data_t val = 0.;
     for (int i=0; i<num; ++i) {
         for (int j=0; j<784+1; ++j) {
-            scanf("%lf,", &val);
+            scanf("%d,", &val);
             if (j == 0) Y[i][0] = val;
             else X[i][j-1] = val;
         }
@@ -152,6 +167,32 @@ void read_train_mnist(std::vector<std::vector<int>>& X, std::vector<std::vector<
     std::cout << "read mnist data finished" << std::endl;
 }
 
+template<typename data_t>
+void data_normalization(std::vector<std::vector<data_t>>& X) {
+    for (index_t r=0; r<X.size(); ++r) {
+        for (index_t c=0; c<X[0].size(); ++c)  {
+            X[r][c]=X[r][c]?1:0;
+        }
+    }
+}
+
+template<typename data_t>
+typename std::vector<std::vector<data_t>> data_pooling(const std::vector<std::vector<data_t>>& X) {
+    index_t r = X.size();
+    index_t c = X[0].size();
+    index_t sz = int(sqrt(c));
+
+    auto res = std::vector<std::vector<data_t>>(r);
+    for (index_t i=0; i<r; ++i) {
+        for (index_t m=0; m<sz-1; m+=2) {
+            for (index_t n=0; n<sz-1; n+=2) {
+                data_t _res = X[i][m*sz+n]+X[i][m*sz+n+1]+X[i][m*sz+n+sz]+X[i][m*sz+n+sz+1]>0?1:0;
+                res[i].push_back(_res);
+            }
+        }
+    }
+    return res;
+}
 
 }
 #endif // KMEANS_HPP
