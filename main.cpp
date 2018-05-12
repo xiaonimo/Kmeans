@@ -1,43 +1,24 @@
-#include "kdtree.hpp"
-#include "kmeans.hpp"
-#include "knn.hpp"
+#include "func.hpp"
+#include "nn.hpp"
 
 int main() {
+    const unsigned num = 4000;
+    points_t X(num, point_t(784));
+    points_t Y(num, point_t(10));
+    ff::read_mnist(X, Y, "train.csv");
+    ff::data_normalization1(X);
 
-    /*
-    std::vector<std::vector<int>> X(10000, std::vector<int>(784, 0));
-    std::vector<std::vector<int>> Y(10000, std::vector<int>(1, 0));
-    wzt::read_train_mnist<int>(X, Y, "train.csv");
+    auto train_x = points_t(std::begin(X), std::begin(X)+int(num*0.9));
+    auto train_y = points_t(std::begin(Y), std::begin(Y)+int(num*0.9));
 
-    auto train_x = std::vector<std::vector<int>>(std::begin(X), std::begin(X)+8000);
-    auto train_y = std::vector<std::vector<int>>(std::begin(Y), std::begin(Y)+8000);
-    auto test_x = std::vector<std::vector<int>>(std::begin(X)+8000, std::end(X));
-    auto test_y = std::vector<std::vector<int>>(std::begin(Y)+8000, std::end(Y));
+    auto test_x = points_t(std::begin(X)+int(num*0.9), std::end(X));
+    auto test_y = points_t(std::begin(Y)+int(num*0.9), std::end(Y));
 
-    wzt::Knn<int> k;
-    k.set_train_data(train_x, train_y);
-    k.set_test_data(test_x, test_y);
-    k.predict();
-    */
+    Full_Layer f1(0, 784);
+    Full_Layer f2(784, 100);
+    Full_Layer f3(100, 10);
+    NN mlp({f1, f2, f3}, train_x, train_y, test_x, test_y);
+    mlp.fit();
 
-    wzt::KDTree<int> a(std::vector<std::vector<int>>{{1,1},{2,2},{3,3},{3,4},{4,3},{4,4},{4,5},{9,9},{2,6}});
-    a.build_KDTree();
-    a.print();
-    a.search(std::vector<int>{3,3}, 3);
-
-    /*
-
-    wzt::data_normalization<double>(X);
-    auto _X = wzt::data_pooling(wzt::data_pooling(X));
-    wzt::Kmeans<double> k(_X);
-    //std::cout << "funk";
-    k.cluster(10);
-    for (wzt::index_t i=0; i<k.n_clusters; ++i) {
-        std::cout << "<" << i << ">"<<std::endl;
-        for (auto index:k.cluster_res[i]) {
-            std::cout<< Y[index][0] <<",";
-        }
-        std::cout <<std::endl<<std::endl;
-    }
-    */
+    return 0;
 }
